@@ -1,0 +1,75 @@
+# SCOPELINE
+
+An English, Traditional Chinese and Japanese local review workspace: compare a customer's original brief with unverified model suggestions, resolve the scope, then explicitly confirm a fixed catalog quote.
+
+**Start here:** [judge setup and walkthrough](docs/JUDGING.md) · [public verification summary](docs/EVIDENCE.md) · [MIT license](LICENSE).
+
+The buildless application is served by a native Node HTTP server on IPv4 loopback. It includes anonymous session workspaces, CSRF checks, explicit manual entry, local Ollama extraction, scope review, quote confirmation and Clear. Cookie possession isolates workspaces; it is not a buyer account or proof of human approval. An explicitly enabled PayPal Sandbox adapter connects the reviewed quote to a durable order ledger, browser approval and separately requested capture. Payments are disabled without private sandbox configuration. Live PayPal hosts and real-money checkout are unsupported. The three catalog offers and their prices are fictional demonstration data, not services offered for sale. This is local preparation, not a production-ready or submitted PayPal entry.
+
+The supplied planning documents identified a real limitation in an earlier single local-model probe: it extracted six clips and three revisions but omitted the corresponding catalog conflicts, and attributed restrictions to the buyer. This implementation keeps model proposals separate from deterministic conflicts and system restrictions. It does not claim that evidence matching or schema validation proves correct interpretation.
+
+## Run locally
+
+Use Node.js 24 or newer. The code uses built-in Node modules only; no package installation is needed.
+
+```sh
+npm start
+```
+
+Open `http://127.0.0.1:31929/`. The home page is the application; `help.html` contains the guide. `SCOPELINE_PORT` can select another unoccupied port. The launcher binds only to `127.0.0.1`; do not expose it through a public proxy or tunnel. The AI action needs an already installed local Ollama service and `qwen3.5:9b` model. Starting the server does not download a model or run inference. Manual entry is an explicit alternative and is never an automatic AI fallback.
+
+Sessions live in process memory, expire after 45 minutes of API inactivity or eight hours total, and disappear when the server stops. Clear rotates the anonymous session and removes its accessible workspace; it does not promise secure erasure or deletion of local-model memory. A pending or unknown sandbox payment blocks Clear; completed payment records remain in the private ledger after Clear. Session expiry or restart does not delete that ledger, but the new anonymous session cannot reclaim the old owner. Operator recovery is then required; this prototype has no recovery-login UI. See [HTTP boundaries](docs/HTTP.md), [payment setup and recovery](docs/PAYMENTS.md) and [UI behavior](docs/UI.md).
+
+To enable the isolated Sandbox workflow, put the four documented settings in ignored `private.env`: `SCOPELINE_PAYPAL_SANDBOX_ENABLED=1`, `PAYPAL_SANDBOX_CLIENT_ID`, `PAYPAL_SANDBOX_CLIENT_SECRET` and `PAYPAL_SANDBOX_MERCHANT_ID`. Use the sandbox Business account's merchant ID and a sandbox REST application's credentials. `npm start` reads that specific file; explicit process environment values take precedence. Credentials are never sent to the browser or local model. The stable runtime journal is `.private/paypal-ledger/`. Read [the complete run instructions](docs/PAYMENTS.md#run-the-sandbox-workflow) before creating an order; do not delete the journal or restart midway through approval as a retry mechanism.
+
+## Run the local checks
+
+```sh
+npm test
+```
+
+`npm test` runs the domain, mocked AI transport, loopback HTTP, controlled DOM/fetch UI, synthetic payment-ledger, Sandbox transport and private-configuration tests. The coordinating full run on 2026-10-30 passed **126/126**. Historical intermediate runs passed 84, then **115/115** after adding 9 payment HTTP, 18 Sandbox transport and 4 configuration cases, and **121/121** after six payment-UI cases. These counts include nested cases and describe different source snapshots. Extractors and provider transports are controlled fakes; this suite reads only synthetic temporary configuration and runs no model, real browser, actual OAuth or PayPal request. Real execution is documented separately in [EVIDENCE.md](docs/EVIDENCE.md). Do not invoke an inference probe merely to run tests.
+
+The domain cases cover the original count/revision mistakes, unsupported promises, missing source timing, false attribution, exact Unicode evidence, price/currency tampering, incomplete review, stale revisions/digests, foreign-owner assertions, immutable quote snapshots and catalog price isolation. These are local behavioral checks, not proof of browser behavior, actual human approval or sandbox payments.
+
+## What is implemented
+
+- A fixed, frozen catalog: `clip_pack` USD 90, `thumbnail_pack` USD 45 and `caption_pack` USD 35. All arithmetic is in integer cents; there is one offer per quote, no automatic multi-pack purchase, discount, tax calculation or negotiation.
+- A strict untrusted draft contract in [`src/contract.mjs`](src/contract.mjs). Each proposed requirement cites an exact span of the unchanged original brief. Missing fields stay missing. The model has no price, approval, system-policy or conflict-authoring fields.
+- Independent catalog comparisons in [`src/catalog.mjs`](src/catalog.mjs). Quantity, revisions, duration, language, format, delivery anchor, music rights and publishing limits are checked without trusting model conflict claims. A missing SKU is explicitly `catalogComparisonStatus: "sku_missing"`: an empty conflict list means no offer has been compared, not that a scope fits. Unsupported SKUs are `sku_unsupported`; `compared` alone still does not mean reviewed or approved.
+- An explicit review and confirmation boundary in [`ScopeBook`](src/domain.mjs): review every model attribution, explain corrections/false attributions and resolve each original deterministic conflict. A final scope must fit the catalog before a quote can be created.
+- Immutable quotes bound to a particular scope version, review digest and owner assertion. Quotes preserve the original text and review decisions, are priced only by the catalog and have `paymentStatus: "not_started"`. Repeating confirmation of the same review returns the same quote. A later saved review creates a new version and makes the earlier quote unavailable through the current-quote guard.
+- A local Ollama adapter in [`src/ai/ollama.mjs`](src/ai/ollama.mjs), with independent mocked tests. It outputs an untrusted draft; it does not approve a scope or invoke a payment. Real model quality, artifact/license evidence and any deliberately run synthetic probes must be recorded separately by the coordinating workflow.
+- A loopback HTTP controller in [`src/server.mjs`](src/server.mjs), with server-derived anonymous ownership, Origin/Host/CSRF checks, bounded requests, session expiry, one active AI operation and no automatic retry. Private sources and receipts are outside the public static surface.
+- A buildless three-language [review workbench](docs/UI.md) with original-text quotations, typed completion of all eleven scope fields, explicit attribution/conflict decisions and separate scope/price confirmation. Dynamic text is rendered as plain data. No external font, asset, CDN or browser build step is required.
+- An opt-in [Sandbox payment workflow](docs/PAYMENTS.md): a private single-writer journal, stable create/capture request IDs, quote/merchant pinning, controller draft locks, conservative unknown-result recovery and independent order/capture response checks. The real server adapter authenticates only the fixed Sandbox API, keeps OAuth tokens in memory, bounds responses and never automatically retries an order or capture POST. All automated payment tests use synthetic responses; actual provider results must be recorded separately. No fulfillment is implemented.
+
+## Confirmation is a caller boundary
+
+`confirmSourceGrounding`, `confirmRights`, `confirmScope` and `acceptCatalogPrice` are assertions from the calling code. An ordinary function call can supply them. Neither the domain nor the local HTTP controller proves a human read the scope, holds a license or clicked a button. The controller derives the domain's opaque `owner` from its server-side anonymous session and rejects browser-supplied ownership; this is workspace isolation, not account authentication.
+
+The current workbench presents editable review controls and the controller enforces CSRF/body-size/rate limits before domain calls. Model output cannot set confirmation flags, prices or payment state. A future deployed application still needs an appropriate identity and authorization design. See [`docs/DOMAIN.md`](docs/DOMAIN.md) for the exact domain contracts and remaining integration gates.
+
+Once a sandbox operation exists, the HTTP controller locks review, quote and replacement-draft mutations. In-flight or unresolved operations block Clear. A return URL or successful HTTP response does not prove payment: the operation can still be `unknown`, and only independently verified completed order and capture evidence sets the payment record to `completed`. The immutable domain quote retains `paymentStatus: "not_started"`; the separate ledger is the payment-status authority.
+
+## Evidence and remaining work
+
+The public [verification summary](docs/EVIDENCE.md) records two actual completed Sandbox flows: a USD 45 manually reviewed API workflow with Chrome buyer approval, and a USD 35 desktop-browser workflow with one real local AI request, explicit review and capture. Both were independently checked against order and capture evidence. Desktop English, Traditional Chinese and Japanese views were exercised. No real funds or fulfillment were involved. This does not establish every UI state, mobile/accessibility coverage, representative AI quality or production readiness.
+
+Historical 47- and 84-case offline runs covered earlier Clear/Refresh and payment-library snapshots. Later 115- and 121-case runs added the real transport/controller implementation and controlled payment-UI tests. The latest full suite passed 126 cases. Passing fake-provider tests is distinct from the two actual Sandbox executions above. The public source and instructions do not depend on private development receipts.
+
+A one-shot integration probe on 2026-10-30 passed 63 HTTP checks against the actual public files, native controller and installed local model. It verified response hashes/MIME/CSP, distinct anonymous sessions, CSRF rejection, an explicitly chosen manual review-to-quote flow, fixed USD 45 package pricing, quote invalidation after a scope change and Clear/session revocation. Its separate AI request used one cleared synthetic caption brief, made exactly one real Ollama chat call and returned the nine expected proposals with exact source quotations; two inapplicable scope fields still needed explicit manual completion. The owned test server was stopped afterward. This was a machine API exercise, not proof of a person reviewing, browser behavior, accessibility or payment.
+
+Later source changes are not covered by that historical probe. [`tools/flow-probe.mjs`](tools/flow-probe.mjs) prints a plan by default; its explicit `--run-once` mode starts an owned ephemeral loopback server and permits at most one real chat request. It never installs or downloads a model. Do not rerun it to erase a failed outcome.
+
+The earlier three-case and revised four-case inference runs retained material semantic gaps. The single later, different synthetic success does not resolve those findings or establish overall AI quality. See [`docs/AI.md`](docs/AI.md) for the separate evidence and observed local model/license provenance. No synthetic fixture represents a real customer, merchant, transaction or fulfilled service.
+
+Actual Dashboard access and two Sandbox completions are verified within the scope above. A different developer's account onboarding and clean-machine setup have not been separately exercised. [JUDGING.md](docs/JUDGING.md) describes the free own-Sandbox path without publishing any seller secret or buyer login. Representative model evaluation, full mobile/accessibility coverage, remote deployment and final submission remain separate from the demonstrated local build. No always-on remote AI service is claimed.
+
+Use only cleared synthetic briefs during preparation. Do not place credentials, real buyer details, financial information or personal briefs in fixtures, prompts, logs or public files. `private.env`, `.private/`, local configuration and runtime directories are ignored as a precaution; an ignore file does not replace a source review before publication. Only the interface language preference is written to browser local storage. Clear and session expiry concern accessible application records; local-model/provider deletion and secure memory erasure are not implemented or promised.
+
+## License
+
+SCOPELINE source is licensed under [MIT](LICENSE), copyright 2026 SCOPELINE contributors. `package.json` stays `private:true` to prevent accidental npm publication; that flag does not restrict a public source repository. Ollama and model weights have their own licenses and are not bundled. See [model provenance and limits](docs/AI.md).
+
+Official references: [event rules](https://paypalaihackathon.devpost.com/rules), [PayPal sandbox accounts](https://developer.paypal.com/sandbox-testing/accounts), [PayPal checkout](https://developer.paypal.com/checkout/integrate/), [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs).

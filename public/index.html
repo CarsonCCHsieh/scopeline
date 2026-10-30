@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2eee5">
+  <meta name="description" content="A human review workspace for turning a brief into a clear, catalog-bound demonstration scope.">
+  <title>Scopeline — Review workspace</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace" data-i18n="skip">Skip to workspace</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Scopeline"><span class="brand-mark" aria-hidden="true">s/</span>scope<span class="brand-serif">line</span><span class="edition">REVIEW STUDIO</span></a>
+    <nav class="header-actions" aria-label="Workspace navigation">
+      <span class="demo-label"><span class="status-dot" aria-hidden="true"></span><span data-i18n="demo">Demonstration only</span></span>
+      <button type="button" id="refresh-session" class="text-link" data-i18n="refreshStatus">Refresh status</button>
+      <a href="/help.html" class="text-link" data-i18n="help">How it works</a>
+      <label class="language-label"><span class="sr-only" data-i18n="language">Language</span><select id="language"><option value="en">EN</option><option value="zh-Hant">繁中</option><option value="ja">日本語</option></select></label>
+    </nav>
+  </header>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <main id="workspace" class="workspace">
+    <aside class="source-panel" aria-labelledby="brief-heading">
+      <div class="panel-kicker"><span class="section-number">01</span><span data-i18n="originalBrief">THE ORIGINAL BRIEF</span><span class="tiny-rule"></span></div>
+      <h1 id="brief-heading" data-i18n="briefHeading">Start with the words.</h1>
+      <p class="panel-description" data-i18n="briefIntro">Keep the request in view. A model can suggest details; you decide what belongs in the scope.</p>
+      <form id="brief-form">
+        <fieldset id="brief-controls" class="bare-fieldset">
+          <label for="raw-brief" class="field-label" data-i18n="briefLabel">Brief text</label>
+          <textarea id="raw-brief" maxlength="2000" rows="10" spellcheck="false" aria-describedby="brief-hint brief-count" placeholder=""></textarea>
+          <div class="input-meta"><span id="brief-hint" data-i18n="syntheticOnly">Use cleared, synthetic material only.</span><span id="brief-count">0 / 2,000</span></div>
+          <button type="button" id="sample-button" class="sample-link"><span aria-hidden="true">＋</span><span data-i18n="loadSample">Insert a labeled sample</span></button>
+          <p id="sample-label" class="sample-label" hidden data-i18n="sampleLoaded">SYNTHETIC SAMPLE — not a customer request</p>
+          <button id="ai-button" type="submit" class="button primary full"><span data-i18n="extract">Suggest a draft locally</span><span aria-hidden="true">↗</span></button>
+          <button id="manual-button" type="button" class="button secondary full" data-i18n="manual">Start a manual draft</button>
+          <p class="microcopy" data-i18n="aiBoundary">AI suggestions require review. A failed extraction never switches to manual mode automatically.</p>
+          <p id="activity-status" class="microcopy" aria-live="polite"></p>
+        </fieldset>
+      </form>
+      <div id="source-lock" class="source-lock" hidden><span aria-hidden="true">↳</span><span data-i18n="sourceLocked">This is the unchanged source for the current draft. Clear the workspace to start another.</span></div>
+      <details class="catalog-section" open>
+        <summary><span data-i18n="catalog">THE DEMONSTRATION CATALOG</span><span aria-hidden="true">＋</span></summary>
+        <p class="microcopy" data-i18n="catalogIntro">Fictional fixed-price offers. No purchase or fulfillment.</p>
+        <div id="catalog-list" class="catalog-list"></div>
+        <p id="catalog-version" class="catalog-version"></p>
+      </details>
+      <details class="policy-section">
+        <summary data-i18n="systemRules">System boundaries</summary>
+        <ul id="system-rules" class="policy-list"></ul>
+      </details>
+      <div class="session-footer"><span data-i18n="memoryOnly">Session memory only</span><button id="clear-button" class="text-link danger" type="button" data-i18n="clear">Clear workspace</button></div>
+    </aside>
+    <section class="review-panel" aria-labelledby="review-heading">
+      <div class="workbench-header">
+        <div><div class="panel-kicker"><span class="section-number">02</span><span data-i18n="humanReview">HUMAN REVIEW</span></div><h2 id="review-heading" data-i18n="reviewHeading">Make every detail explicit.</h2></div>
+        <span id="draft-state" class="state-pill" data-i18n="waiting">Waiting for a brief</span>
+      </div>
+      <div id="empty-state" class="empty-state">
+        <div class="empty-sheet" aria-hidden="true"><span class="sheet-line long"></span><span class="sheet-line"></span><span class="sheet-line short"></span><span class="review-mark">✓</span></div>
+        <h3 data-i18n="emptyHeading">A scope you can stand behind.</h3>
+        <p data-i18n="emptyText">Add a brief on the left, then choose local suggestions or a manual draft. Nothing is accepted, quoted or paid automatically.</p>
+        <ol class="flow-preview"><li><span>01</span><span data-i18n="flow1">Read the original</span></li><li><span>02</span><span data-i18n="flow2">Review every attribution</span></li><li><span>03</span><span data-i18n="flow3">Confirm scope and catalog price</span></li></ol>
+      </div>
+      <div id="draft-workspace" hidden>
+        <div class="review-warning"><span class="warning-glyph" aria-hidden="true">!</span><div><strong data-i18n="modelWarning">A quotation is evidence of words, not evidence of understanding.</strong><p data-i18n="modelWarningDetail">The model may omit requirements or ask incomplete questions. Compare every suggestion with the original, and complete all eleven scope fields.</p></div></div>
+        <div class="draft-meta"><span id="attribution-meta"></span><span id="original-comparison"></span></div>
+        <form id="review-form">
+          <fieldset id="review-controls" class="bare-fieldset">
+            <section class="scope-section" aria-labelledby="scope-heading">
+              <div class="section-heading"><div><span class="eyebrow" data-i18n="finalScope">THE SCOPE YOU ARE REVIEWING</span><h3 id="scope-heading" data-i18n="allFields">Eleven fields. No assumptions.</h3></div><span class="required-label" data-i18n="allRequired">All required</span></div>
+              <div id="scope-fields" class="scope-grid"></div>
+              <button type="button" id="catalog-values" class="text-link catalog-fill" data-i18n="fillLimits">Fill the selected offer's limits</button>
+              <p class="microcopy" data-i18n="fillLimitsHint">Explicit shortcut for offer terms only. It does not confirm source readiness, music rights or model attributions.</p>
+              <div id="working-comparison" class="comparison-box" aria-live="polite"></div>
+            </section>
+            <section class="attribution-section" aria-labelledby="attribution-heading">
+              <div class="section-heading"><div><span class="eyebrow" data-i18n="proposals">UNVERIFIED PROPOSALS</span><h3 id="attribution-heading" data-i18n="attributionHeading">What did the model attribute?</h3></div><span id="proposal-count" class="count-badge">0</span></div>
+              <p class="section-description" data-i18n="decisionHint">Accept, correct, or mark each attribution as not requested. Corrected and false attributions require a note; the final scope still needs every field.</p>
+              <div id="proposal-list" class="proposal-list"></div>
+              <details id="questions-details" class="questions-section"><summary data-i18n="modelQuestions">Model follow-up questions — may be incomplete</summary><ul id="model-questions"></ul></details>
+            </section>
+            <section id="conflict-section" class="conflict-section" aria-labelledby="conflict-heading">
+              <div class="section-heading"><div><span class="eyebrow" data-i18n="catalogFlags">CATALOG / SYSTEM FLAGS</span><h3 id="conflict-heading" data-i18n="conflictHeading">Resolve the original conflicts.</h3></div><span id="conflict-count" class="count-badge">0</span></div>
+              <p class="section-description" data-i18n="conflictHint">These are the original draft's deterministic flags. Adjust the scope, explicitly accept the catalog terms, and explain each resolution.</p>
+              <div id="conflict-list"></div>
+            </section>
+            <section class="review-confirmations">
+              <label class="check-row"><input type="checkbox" id="confirm-grounding"><span data-i18n="groundingConfirm">I compared every attribution with the unchanged source and reviewed all eleven scope fields.</span></label>
+              <label class="check-row"><input type="checkbox" id="confirm-rights"><span data-i18n="rightsConfirm">I reviewed source and music rights. A draft does not verify a license or authorize publication.</span></label>
+              <div class="review-action"><p id="review-progress" class="microcopy" aria-live="polite"></p><button id="save-review" type="submit" class="button primary"><span data-i18n="saveReview">Save explicit review</span><span aria-hidden="true">→</span></button></div>
+            </section>
+          </fieldset>
+        </form>
+        <section id="quote-stage" class="quote-section" aria-labelledby="quote-heading">
+          <div class="section-heading"><div><span class="eyebrow"><span class="section-number">03</span> <span data-i18n="catalogQuote">CATALOG QUOTE</span></span><h3 id="quote-heading" data-i18n="quoteHeading">One last, deliberate check.</h3></div><span id="quote-payment-badge" class="not-paid">NOT PAID</span></div>
+          <div id="quote-content"></div>
+          <form id="quote-form" hidden>
+            <fieldset id="quote-controls" class="bare-fieldset">
+              <label class="check-row"><input type="checkbox" id="confirm-scope"><span data-i18n="scopeConfirm">I confirm this saved scope, separately from the draft review.</span></label>
+              <label class="check-row"><input type="checkbox" id="confirm-price"><span id="price-confirm-label" data-i18n="priceConfirm">I explicitly accept the displayed fixed catalog total.</span></label>
+              <button id="confirm-quote" type="submit" class="button ink full" data-i18n="confirmQuote">Confirm scope & catalog price</button>
+            </fieldset>
+          </form>
+          <section id="payment-stage" class="payment-boundary" aria-label="PayPal Sandbox test"><span class="boundary-icon" aria-hidden="true">∅</span><div><strong data-i18n="paypalPending">Sandbox payment is not enabled</strong><p data-i18n="noPayment">This workspace remains a scope and quote demonstration. No payment or fulfillment has started.</p></div></section>
+        </section>
+      </div>
+      <footer class="workbench-footer"><span>SCOP/LINE</span><span data-i18n="footer">Original words. Human decisions. Catalog-bound prices.</span><a href="/help.html" data-i18n="limitsHelp">Read the limits ↗</a></footer>
+    </section>
+  </main>
+  <dialog id="clear-dialog" aria-labelledby="clear-title">
+    <div class="dialog-content"><span class="eyebrow" data-i18n="clearEyebrow">WORKSPACE CONTROL</span><h2 id="clear-title" data-i18n="clearTitle">Clear this workspace?</h2><p data-i18n="clearDetail">This requests removal of the current session workspace from this app. It does not promise deletion of model memory, provider records or other browser sessions.</p><div class="dialog-actions"><button type="button" id="cancel-clear" class="button secondary" data-i18n="cancel">Keep workspace</button><button type="button" id="confirm-clear" class="button primary" data-i18n="confirmClear">Clear current workspace</button></div></div>
+  </dialog>
+  <noscript><p class="notice">JavaScript is required for the review workspace. No AI request or payment runs without it.</p></noscript>
+</body>
+</html>
