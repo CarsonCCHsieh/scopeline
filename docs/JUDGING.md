@@ -15,7 +15,19 @@ node --version
 npm test
 ```
 
-The coordinating full offline run passed 126 cases. Tests use fake model/provider responses and synthetic temporary files, not your credentials. Passing them is not a real Sandbox transaction. The two actual observed flows are summarized in [EVIDENCE.md](EVIDENCE.md).
+The coordinating full offline run passed 126 cases. A separate fresh local clone of [application commit `41b081d`](https://github.com/CarsonCCHsieh/scopeline/tree/41b081df96d331fdfb7bddae5c77aa2f150d0580) also passed **126/126**, with its expected 39 tracked files unchanged and no private configuration. This was a clean local clone, not clean judge hardware or new-account onboarding. Tests use fake model/provider responses and synthetic temporary files, not your credentials. Passing them is not a real Sandbox transaction. Three distinct actual observed Sandbox flows are summarized in [EVIDENCE.md](EVIDENCE.md).
+
+## Manual review and unpaid quote, without AI or keys
+
+This explicit path exercises the actual local interface and deterministic scope-to-quote logic. It requires only Node, with neither Ollama nor PayPal credentials. It does not imitate AI extraction or a completed Sandbox payment.
+
+1. From a clean clone with no private settings, run `npm start` and open `http://127.0.0.1:31929/`. Payments remain disabled. If reusing a configured checkout, explicitly set `SCOPELINE_PAYPAL_SANDBOX_ENABLED=0` before launch instead of publishing or sharing its configuration.
+2. Paste the fictional caption brief in the walkthrough below and choose **Start a manual draft**, not the local AI button. The proposal list is empty because no extraction ran.
+3. Select `caption_pack` and explicitly enter all eleven values shown below. The catalog-fill shortcut copies offer terms only; source readiness, music rights and review assertions still need attention. Resolve any displayed original conflict; the catalog cannot be waived with a note.
+4. Compare the final fields with the unchanged synthetic source, make the grounding/rights assertions appropriate to that controlled example and save review. Inspect the saved scope, separately confirm scope and fixed catalog price, then choose **Confirm scope & catalog price**.
+5. Expect a fixed **USD 35 unpaid quote** and the disabled Sandbox panel. No order, buyer approval, capture or fulfillment has occurred. The manual mode is labeled separately and never counts as an AI result.
+
+For the complete AI-plus-Sandbox evaluation, follow the remaining setup with your own local model and private Sandbox credentials. The project does not distribute the coordinating owner's keys or test-buyer login, or provide a hosted checkout.
 
 ## Start the local AI
 
@@ -29,7 +41,7 @@ ollama show qwen3.5:9b
 
 The application calls only `http://127.0.0.1:11434/api/chat`, with `qwen3.5:9b`, structured output and a 90-second extraction deadline. A later mutable tag need not reproduce the original installed bytes. Inspect your model/license and review every result. See [AI behavior and known omissions](AI.md). There is no automatic model download, inference on page load, retry or silent manual fallback.
 
-Without Ollama, you can deliberately choose the manual draft path and test the domain/payment flow. That is manual input, not AI inference. To assess the complete AI-plus-PayPal build, enable the actual local model as above.
+Without Ollama, the manual path above can exercise domain review and an unpaid quote without credentials. Separately enabling your own Sandbox can add a manual-input payment test; that is still manual input, not AI inference. To assess the complete AI-plus-PayPal build, enable the actual local model as above.
 
 ## Enable your own free Sandbox
 
@@ -56,6 +68,8 @@ Open **`http://127.0.0.1:31929/`**. Alternatively, `node --env-file=private.env 
 For a clean clone with no private settings, `npm start` leaves payments disabled. To explicitly disable an existing private configuration, set `SCOPELINE_PAYPAL_SANDBOX_ENABLED=0`. This is a local server, not a production deployment: do not expose it through a proxy/tunnel. Its Host, Origin, cookies and return URLs intentionally target loopback.
 
 ## AI, explicit review and USD 35 Sandbox walkthrough
+
+This is a reproducible example, not a guaranteed model transcript. The latest recorded demonstration used a separate 217-character synthetic brief: one real local model request produced seven proposals and left four fields missing; all seven proposals were reviewed and accepted, all eleven final fields were completed, and the USD 35 Sandbox workflow was verified. Follow the displayed output and fill every missing field rather than expecting those exact counts from this example. The actual completed state was viewed in all three interface languages at a 1280 × 720 desktop viewport. The [2:45 demo video is published Public](https://youtu.be/W0Y2Xd_4Kxs), and the [project was submitted to Devpost](https://devpost.com/software/scopeline) on 2026-10-30. See [EVIDENCE.md](EVIDENCE.md) for playback and verification limits.
 
 Select English for these instructions; the interface also offers Traditional Chinese and Japanese. Paste this owner-authored fictional brief, or insert the application's clearly labeled sample and review its different requested terms:
 
