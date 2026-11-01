@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import { createScopeServer } from '../src/server.mjs';
 import { DraftAiError } from '../src/ai/ollama.mjs';
+import { CATALOG_INTENT_VERSION } from '../src/ai/catalog-intent.mjs';
 
 const empty = () => ({ draft: { requestedRequirements: [], missingQuestions: [] }, metadata: { elapsedMs: 1 } });
 const finalScope = () => ({ sku: 'clip_pack', deliverables: 3, secondsPerDeliverable: 30,
@@ -130,6 +131,101 @@ test('HTTP incomplete review and cross-workspace IDs fail without changing store
   assert.equal((await f.send(a, path, invalid)).status, 422);
   assert.equal((await f.current(a)).body.draft.version, 1);
   assert.equal((await f.send(a, `/api/drafts/${d.id}/quote`, quote(d))).status, 422);
+});
+
+test('HTTP grounds an omitted service on the server and still requires its explicit review decision', async t => {
+  const f = await fixture(t); const a = await f.bootstrap();
+  const rawBrief = 'Please create highlight clips. My source material is not ready.';
+  const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'ai' });
+  assert.equal(made.status, 201);
+  const d = made.body.draft; const proposal = d.requestedRequirements.find(p => p.field === 'sku');
+  assert.equal(proposal.value, 'clip_pack');
+  assert.equal(rawBrief.slice(proposal.evidence.start, proposal.evidence.end), proposal.evidence.quote);
+  assert.equal(proposal.evidence.quote, 'Please create highlight clips');
+  assert.equal(made.body.extraction.serviceIntent.source, 'catalog_alias_rules');
+  assert.equal(made.body.extraction.serviceIntent.version, CATALOG_INTENT_VERSION);
+  assert.equal(made.body.extraction.serviceIntent.status, 'suggested');
+  assert.equal(made.body.extraction.requiresHumanReview, true);
+  assert.equal(d.review, null); assert.equal(d.quoteId, null);
+  const path = `/api/drafts/${d.id}`;
+  assert.equal((await f.send(a, path + '/quote', quote(d))).status, 422);
+  const omittedDecision = review(d); omittedDecision.decisions = [];
+  assert.equal((await f.send(a, path + '/review', omittedDecision)).status, 422);
+  const reviewed = await f.send(a, path + '/review', review(d));
+  assert.equal(reviewed.status, 200);
+  assert.equal(reviewed.body.draft.state, 'reviewed');
+  assert.equal((await f.current(a)).body.quote, null);
+});
+
+test('HTTP model service conflicts require manual selection and cannot forge accepted provenance', async t => {
+  const rawBrief = 'Please create highlight clips.';
+  const f = await fixture(t, { extractor: { extractDraft: async () => ({
+    draft: { requestedRequirements: [{ field: 'sku', value: 'thumbnail_pack',
+      evidence: { start: 0, end: rawBrief.length, quote: rawBrief } }], missingQuestions: [] },
+    metadata: { status: 'accepted', requiresHumanReview: false, elapsedMs: 7,
+      serviceIntent: { source: 'buyer_confirmation', status: 'accepted' } },
+  }) } });
+  const a = await f.bootstrap();
+  const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'ai' });
+  assert.equal(made.status, 201);
+  const d = made.body.draft;
+  assert.equal(d.requestedRequirements.length, 0);
+  assert.equal(d.catalogComparisonStatus, 'sku_missing');
+  assert.match(d.missingQuestions[0], /Choose the service in Scope review.*conflicts/);
+  assert.equal(made.body.extraction.status, 'unverified_draft');
+  assert.equal(made.body.extraction.requiresHumanReview, true);
+  assert.equal(made.body.extraction.serviceIntent.source, 'catalog_alias_rules');
+  assert.equal(made.body.extraction.serviceIntent.status, 'manual_selection_required');
+  assert.equal(made.body.extraction.serviceIntent.modelConflict, true);
+  assert.equal(made.body.extraction.serviceIntent.modelSkuSuppressed, true);
+  // An abstention leaves the existing complete manual review available.
+  const reviewed = await f.send(a, `/api/drafts/${d.id}/review`, review(d));
+  assert.equal(reviewed.status, 200);
+  assert.equal(reviewed.body.draft.review.scope.sku, 'clip_pack');
+  assert.equal((await f.current(a)).body.quote, null);
+});
+
+test('HTTP rejects caller intent/evidence metadata and explicit manual entry never runs inference', async t => {
+  let calls = 0;
+  const f = await fixture(t, { extractor: { extractDraft: async () => { calls++; return empty(); } } });
+  const a = await f.bootstrap(); const rawBrief = 'Please create caption files.';
+  for (const extra of [
+    { metadata: { serviceIntent: { status: 'accepted' } } },
+    { evidence: { start: 0, end: rawBrief.length, quote: rawBrief } },
+  ]) assert.equal((await f.send(a, '/api/drafts', { rawBrief, mode: 'ai', ...extra })).status, 422);
+  assert.equal(calls, 0);
+  const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'manual' });
+  assert.equal(made.status, 201); assert.equal(calls, 0);
+  assert.deepEqual(made.body.draft.requestedRequirements, []);
+  assert.equal(made.body.extraction.mode, 'manual');
+  assert.equal(made.body.extraction.serviceIntent, undefined);
+  assert.equal((await f.current(a)).body.quote, null);
+});
+
+test('HTTP suppresses a model SKU from another speaker or a withdrawn request, preserving manual review', async t => {
+  const f = await fixture(t, { extractor: { extractDraft: async rawBrief => ({
+    draft: { requestedRequirements: [{ field: 'sku', value: 'thumbnail_pack',
+      evidence: { start: 0, end: rawBrief.length, quote: rawBrief } }], missingQuestions: [] },
+  }) } });
+  const a = await f.bootstrap();
+  for (const [rawBrief, reason] of [
+    ['Seller says:\nPlease make thumbnails.', 'indirect_reference'],
+    ['I need thumbnails. No, cancel that request.', 'withdrawn_request'],
+  ]) {
+    const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'ai' });
+    assert.equal(made.status, 201);
+    const d = made.body.draft;
+    assert.equal(d.requestedRequirements.length, 0);
+    assert.equal(d.catalogComparisonStatus, 'sku_missing');
+    assert.equal(made.body.extraction.serviceIntent.reason, reason);
+    assert.equal(made.body.extraction.serviceIntent.status, 'manual_selection_required');
+    assert.equal(made.body.extraction.serviceIntent.modelSkuSuppressed, true);
+    assert.match(d.missingQuestions[0], /Choose the service in Scope review/);
+    assert.equal((await f.send(a, `/api/drafts/${d.id}/quote`, quote(d))).status, 422);
+    const reviewed = await f.send(a, `/api/drafts/${d.id}/review`, review(d));
+    assert.equal(reviewed.status, 200);
+    assert.equal((await f.current(a)).body.quote, null);
+  }
 });
 
 test('HTTP preview preserves partial missing fields and recomputes conflicts without saving', async t => {

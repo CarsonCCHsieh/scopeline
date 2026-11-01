@@ -2,20 +2,22 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createLocalExtractor, MODEL } from '../src/ai/ollama.mjs';
+import { withCatalogIntent, CATALOG_INTENT_VERSION } from '../src/ai/catalog-intent.mjs';
 import { catalogConflicts } from '../src/catalog.mjs';
 
 const output = new URL('../.private/', import.meta.url);
 const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const sourceFiles = ['src/ai/ollama.mjs', 'src/contract.mjs', 'src/catalog.mjs', 'tools/ai-probe.mjs'];
+const sourceFiles = ['src/ai/ollama.mjs', 'src/ai/catalog-intent.mjs', 'src/server.mjs', 'src/contract.mjs', 'src/catalog.mjs', 'tools/ai-probe.mjs'];
 const hashes = async () => Object.fromEntries(await Promise.all(sourceFiles.map(async path => [path, sha(await readFile(new URL(`../${path}`, import.meta.url)))])));
-const receipt = { schemaVersion: 1, kind: 'actual_local_inference_with_synthetic_briefs', startedAt: new Date().toISOString(),
+const receipt = { schemaVersion: 3, kind: 'actual_local_inference_with_synthetic_briefs', startedAt: new Date().toISOString(),
+  serviceIntentVersion: CATALOG_INTENT_VERSION,
   model: MODEL, modelDownloads: 0, packageInstalls: 0, paypalCalls: 0, quotesCreated: 0,
   sourceHashesBefore: await hashes(), cases: [], sources: {
     chat: 'https://docs.ollama.com/api/chat', structured: 'https://docs.ollama.com/capabilities/structured-outputs',
     metadata: 'https://github.com/ollama/ollama/blob/main/docs/api.md#show-model-information',
     model: 'https://ollama.com/library/qwen3.5:9b', upstream: 'https://huggingface.co/Qwen/Qwen3.5-9B',
-  }, limitations: ['Four owner-authored synthetic cases only; not an accuracy, security or multilingual benchmark.',
+  }, limitations: ['Four known owner-authored regression cases only; not a held-out accuracy, security or multilingual benchmark.',
     'Exact source quotations prove location, not semantic attribution or truth.',
     'No human UI review, PayPal transaction, production service or judge reproduction is established.',
     'Loopback API and local GGUF metadata are observed; no external inference API is configured by this program.'],
@@ -64,10 +66,13 @@ for (const entry of cases) {
   const observed = { id: entry.id, syntheticBrief: entry.brief, expected: entry.expected,
     expectedConflicts: entry.expectedConflicts, attempts: 1, startedAt: new Date().toISOString() };
   try {
-    const result = await extractor.extractDraft(entry.brief);
+    const modelResult = await extractor.extractDraft(entry.brief);
+    const prepared = withCatalogIntent(entry.brief, modelResult.draft);
+    const result = { draft: prepared.draft, metadata: { ...modelResult.metadata, serviceIntent: prepared.serviceIntent } };
     const fields = Object.fromEntries(result.draft.requestedRequirements.map(item => [item.field, item.value]));
     const conflicts = catalogConflicts(fields).map(item => item.id);
     const checks = Object.fromEntries(Object.entries(entry.expected).map(([key, value]) => [key, fields[key] === value]));
+    checks.no_unexpected_proposals = Object.keys(fields).every(key => Object.hasOwn(entry.expected, key));
     checks.exact_conflict_set = JSON.stringify([...conflicts].sort()) === JSON.stringify([...entry.expectedConflicts].sort());
     observed.status = Object.values(checks).every(Boolean) ? 'expected_fields_observed' : 'draft_has_semantic_gaps';
     observed.result = result; observed.conflicts = conflicts; observed.checks = checks;
