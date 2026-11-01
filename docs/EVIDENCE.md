@@ -37,7 +37,7 @@ Historical intermediate suites passed 47, 84, 115 and 121 cases on earlier sourc
 
 ## Published demo and submission
 
-The [2:45 demo video](https://youtu.be/W0Y2Xd_4Kxs) was published **Public** on YouTube on 2026-10-30. Studio confirmed publication. In the existing signed-in Chrome session, actual playback advanced from **0:00 to 0:08**, then paused. Anonymous access and full-length playback were not separately verified.
+The [2:45 demo video](https://youtu.be/mZ4r_u53To0) was published **Public** on YouTube on 2026-10-30. Studio confirmed publication. In the existing signed-in Chrome session, actual playback advanced from **0:00 to 0:08**, then paused. Anonymous access and full-length playback were not separately verified.
 
 Devpost confirmed the [SCOPELINE submission to the PayPal AI Hackathon](https://devpost.com/software/scopeline) on **2026-10-30**, with the submitted confirmation and edit-submission action visible. [DEVPOST_DRAFT.md](DEVPOST_DRAFT.md) retains its filename and now serves as a submitted-project story mirror. The working build remains the repository plus complete local setup.
 

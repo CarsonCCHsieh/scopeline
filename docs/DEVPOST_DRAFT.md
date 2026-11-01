@@ -1,6 +1,6 @@
 # Submission record and story mirror
 
-The [SCOPELINE entry](https://devpost.com/software/scopeline) was **submitted to the PayPal AI Hackathon on 2026-10-30**. This file retains its original filename and now mirrors the submitted project's English story and status. The [2:45 demo video is published Public](https://youtu.be/W0Y2Xd_4Kxs); playback was observed to eight seconds in the existing signed-in Chrome session, without a separate anonymous or full-length playback check. The application source is [commit `41b081d`](https://github.com/CarsonCCHsieh/scopeline/tree/41b081df96d331fdfb7bddae5c77aa2f150d0580); this document records later evidence without changing that application.
+The [SCOPELINE entry](https://devpost.com/software/scopeline) was **submitted to the PayPal AI Hackathon on 2026-10-30**. This file retains its original filename and now mirrors the submitted project's English story and status. The [2:45 demo video is published Public](https://youtu.be/mZ4r_u53To0); playback was observed to eight seconds in the existing signed-in Chrome session, without a separate anonymous or full-length playback check. The application source is [commit `41b081d`](https://github.com/CarsonCCHsieh/scopeline/tree/41b081df96d331fdfb7bddae5c77aa2f150d0580); this document records later evidence without changing that application.
 
 Project: **SCOPELINE**
 
