@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { createScopeServer } from '../src/server.mjs';
 import { DraftAiError } from '../src/ai/ollama.mjs';
 import { CATALOG_INTENT_VERSION } from '../src/ai/catalog-intent.mjs';
+import { SOURCE_FACTS_VERSION } from '../src/ai/source-facts.mjs';
 
 const empty = () => ({ draft: { requestedRequirements: [], missingQuestions: [] }, metadata: { elapsedMs: 1 } });
 const finalScope = () => ({ sku: 'clip_pack', deliverables: 3, secondsPerDeliverable: 30,
@@ -200,6 +201,49 @@ test('HTTP rejects caller intent/evidence metadata and explicit manual entry nev
   assert.equal(made.body.extraction.mode, 'manual');
   assert.equal(made.body.extraction.serviceIntent, undefined);
   assert.equal((await f.current(a)).body.quote, null);
+});
+
+test('HTTP independently locates literal facts and requires their explicit decisions before review', async t => {
+  const f = await fixture(t, { extractor: { extractDraft: async () => ({ ...empty(), metadata: {
+    sourceFacts: { version: 'forged', requiresHumanReview: false }, status: 'accepted',
+  } }) } });
+  const a = await f.bootstrap();
+  const rawBrief = 'Please create highlight clips with English captions. Delivery starts after source receipt.';
+  const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'ai' });
+  assert.equal(made.status, 201);
+  assert.equal(made.body.extraction.sourceFacts.version, SOURCE_FACTS_VERSION);
+  assert.equal(made.body.extraction.sourceFacts.source, 'literal_scope_rules');
+  assert.equal(made.body.extraction.sourceFacts.requiresHumanReview, true);
+  const d = made.body.draft;
+  for (const field of ['captionsLanguage', 'deliveryStarts']) {
+    const p = d.requestedRequirements.find(item => item.field === field);
+    assert.equal(rawBrief.slice(p.evidence.start, p.evidence.end), p.evidence.quote);
+    const missing = review(d); missing.decisions = missing.decisions.filter(item => item.field !== field);
+    assert.equal((await f.send(a, `/api/drafts/${d.id}/review`, missing)).status, 422);
+  }
+  assert.equal((await f.send(a, `/api/drafts/${d.id}/quote`, quote(d))).status, 422);
+  const saved = await f.send(a, `/api/drafts/${d.id}/review`, review(d));
+  assert.equal(saved.status, 200); assert.equal((await f.current(a)).body.quote, null);
+});
+
+test('HTTP source/model conflicts suppress both facts and still allow complete manual review', async t => {
+  const rawBrief = 'Please create highlight clips with English captions. Delivery starts after source receipt.';
+  const f = await fixture(t, { extractor: { extractDraft: async () => ({ draft: {
+    requestedRequirements: [['captionsLanguage', 'Japanese'], ['deliveryStarts', 'calendar_now']].map(([field, value]) => ({
+      field, value, evidence: { start: 0, end: rawBrief.length, quote: rawBrief },
+    })), missingQuestions: [],
+  } }) } });
+  const a = await f.bootstrap();
+  const made = await f.send(a, '/api/drafts', { rawBrief, mode: 'ai' });
+  assert.equal(made.status, 201);
+  assert.deepEqual(made.body.draft.requestedRequirements.map(item => item.field), ['sku']);
+  for (const field of ['captionsLanguage', 'deliveryStarts']) {
+    assert.equal(made.body.extraction.sourceFacts.fields[field].modelConflict, true);
+    assert.equal(made.body.extraction.sourceFacts.fields[field].status, 'manual_selection_required');
+  }
+  assert.match(made.body.draft.missingQuestions[0], /disagree/);
+  const saved = await f.send(a, `/api/drafts/${made.body.draft.id}/review`, review(made.body.draft));
+  assert.equal(saved.status, 200); assert.equal((await f.current(a)).body.quote, null);
 });
 
 test('HTTP suppresses a model SKU from another speaker or a withdrawn request, preserving manual review', async t => {

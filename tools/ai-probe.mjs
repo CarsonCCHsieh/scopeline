@@ -2,16 +2,17 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createLocalExtractor, MODEL } from '../src/ai/ollama.mjs';
-import { withCatalogIntent, CATALOG_INTENT_VERSION } from '../src/ai/catalog-intent.mjs';
+import { CATALOG_INTENT_VERSION } from '../src/ai/catalog-intent.mjs';
+import { withSourceFacts, SOURCE_FACTS_VERSION } from '../src/ai/source-facts.mjs';
 import { catalogConflicts } from '../src/catalog.mjs';
 
 const output = new URL('../.private/', import.meta.url);
 const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const sourceFiles = ['src/ai/ollama.mjs', 'src/ai/catalog-intent.mjs', 'src/server.mjs', 'src/contract.mjs', 'src/catalog.mjs', 'tools/ai-probe.mjs'];
+const sourceFiles = ['src/ai/ollama.mjs', 'src/ai/catalog-intent.mjs', 'src/ai/source-facts.mjs', 'src/server.mjs', 'src/contract.mjs', 'src/catalog.mjs', 'tools/ai-probe.mjs'];
 const hashes = async () => Object.fromEntries(await Promise.all(sourceFiles.map(async path => [path, sha(await readFile(new URL(`../${path}`, import.meta.url)))])));
-const receipt = { schemaVersion: 3, kind: 'actual_local_inference_with_synthetic_briefs', startedAt: new Date().toISOString(),
-  serviceIntentVersion: CATALOG_INTENT_VERSION,
+const receipt = { schemaVersion: 4, kind: 'actual_local_inference_with_synthetic_briefs', startedAt: new Date().toISOString(),
+  serviceIntentVersion: CATALOG_INTENT_VERSION, sourceFactsVersion: SOURCE_FACTS_VERSION,
   model: MODEL, modelDownloads: 0, packageInstalls: 0, paypalCalls: 0, quotesCreated: 0,
   sourceHashesBefore: await hashes(), cases: [], sources: {
     chat: 'https://docs.ollama.com/api/chat', structured: 'https://docs.ollama.com/capabilities/structured-outputs',
@@ -67,8 +68,8 @@ for (const entry of cases) {
     expectedConflicts: entry.expectedConflicts, attempts: 1, startedAt: new Date().toISOString() };
   try {
     const modelResult = await extractor.extractDraft(entry.brief);
-    const prepared = withCatalogIntent(entry.brief, modelResult.draft);
-    const result = { draft: prepared.draft, metadata: { ...modelResult.metadata, serviceIntent: prepared.serviceIntent } };
+    const prepared = withSourceFacts(entry.brief, modelResult.draft);
+    const result = { draft: prepared.draft, metadata: { ...modelResult.metadata, serviceIntent: prepared.serviceIntent, sourceFacts: prepared.sourceFacts } };
     const fields = Object.fromEntries(result.draft.requestedRequirements.map(item => [item.field, item.value]));
     const conflicts = catalogConflicts(fields).map(item => item.id);
     const checks = Object.fromEntries(Object.entries(entry.expected).map(([key, value]) => [key, fields[key] === value]));

@@ -7,7 +7,7 @@ import { ScopeBook } from './domain.mjs';
 import { CATALOG, CATALOG_VERSION, SYSTEM_RESTRICTIONS, catalogConflicts, findSku } from './catalog.mjs';
 import { DomainError, FIELDS, boundedText, record, validateValue } from './contract.mjs';
 import { createLocalExtractor, DraftAiError, MAX_BRIEF_CHARS, MODEL } from './ai/ollama.mjs';
-import { withCatalogIntent } from './ai/catalog-intent.mjs';
+import { withSourceFacts } from './ai/source-facts.mjs';
 import { PaymentService, PaymentError } from './payment-service.mjs';
 import { LedgerError, isProviderId } from './order-ledger.mjs';
 
@@ -212,10 +212,11 @@ export function createScopeServer({ extractor = createLocalExtractor(), publicDi
               const result = await extractor.extractDraft(body.rawBrief);
               // Model/caller metadata cannot declare a service accepted. This
               // server-owned rule checks exact source evidence independently.
-              const prepared = withCatalogIntent(body.rawBrief, result.draft);
+              const prepared = withSourceFacts(body.rawBrief, result.draft);
               extraction = prepared.draft;
               metadata = { mode: 'ai', model: MODEL, status: 'unverified_draft', requiresHumanReview: true };
               metadata.serviceIntent = prepared.serviceIntent;
+              metadata.sourceFacts = prepared.sourceFacts;
               if (Number.isFinite(result.metadata?.elapsedMs)) metadata.elapsedMs = result.metadata.elapsedMs;
             } finally { s.pending = false; aiBusy = false; }
             if (s.revoked || expired(s) || sessions.get(s.id) !== s || res.destroyed) deny(409, 'session_changed', 'The workspace changed while extraction was running. Its result was discarded.');
